@@ -1,0 +1,12 @@
+pandas
+numpy
+scikit-learn
+torch
+torchvision
+fastapi
+uvicorn
+matplotlib
+seaborn
+xgboost
+python-multipart
+httpx
