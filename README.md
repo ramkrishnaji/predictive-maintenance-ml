@@ -16,13 +16,13 @@ The model uses a shared LSTM backbone (2 layers, 100 hidden units, 0.2 dropout) 
 
 ```mermaid
 graph TD
-    A[Input Sequence 50x17] --> B[LSTM Layer 1 (dropout=0.2)]
-    B --> C[LSTM Layer 2 (dropout=0.2)]
+    A["Input Sequence (50x17)"] --> B["LSTM Layer 1 (dropout=0.2)"]
+    B --> C["LSTM Layer 2 (dropout=0.2)"]
     C --> D[Shared Representation]
-    D --> E[Regression Head (Linear)]
-    D --> F[Classification Head (Sigmoid)]
+    D --> E["Regression Head (Linear)"]
+    D --> F["Classification Head (Sigmoid)"]
     E --> G[RUL Prediction]
-    F --> H[Failure Prob < 30 Cycles]
+    F --> H["Failure Prob (RUL <= 30)"]
 ```
 
 ## 📉 Results (Official FD001 Test Set)
