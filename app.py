@@ -253,142 +253,202 @@ if len(unit_data) < SEQUENCE_LENGTH:
     st.error(f"❌ Selected Engine Unit {selected_unit} has only {len(unit_data)} cycles of history. A minimum of {SEQUENCE_LENGTH} cycles is required for LSTM sequence processing.")
     st.stop()
 
-# Slider for Cycle Selection
-max_cycle = int(unit_data['time_cycles'].max())
-selected_cycle = st.slider(
-    "Select Operational Cycle to Analyze",
-    min_value=SEQUENCE_LENGTH,
-    max_value=max_cycle,
-    value=max_cycle,
-    step=1
-)
+# Create tabs for structured navigation
+tab_dashboard, tab_glossary, tab_raw = st.tabs([
+    "📊 Live Analytics & Predictions", 
+    "📖 Sensor & Parameter Glossary", 
+    "🔍 LSTM Input Matrix Details"
+])
 
-# Extract metrics for selected cycle
-cycle_row = unit_data[unit_data['time_cycles'] == selected_cycle].iloc[0]
-pred_rul_val = cycle_row['pred_RUL']
-fail_prob_val = cycle_row['failure_prob']
-actual_rul_val = cycle_row['RUL']
+with tab_dashboard:
+    # Slider for Cycle Selection
+    max_cycle = int(unit_data['time_cycles'].max())
+    selected_cycle = st.slider(
+        "Select Operational Cycle to Analyze",
+        min_value=SEQUENCE_LENGTH,
+        max_value=max_cycle,
+        value=max_cycle,
+        step=1,
+        key="dashboard_cycle_slider"
+    )
 
-# Determine status class & description
-if fail_prob_val > 0.5:
-    status_label = "CRITICAL FAILURE RISK"
-    status_class = "status-critical"
-elif fail_prob_val > 0.2:
-    status_label = "CAUTION / WEAR DETECTED"
-    status_class = "status-caution"
-else:
-    status_label = "HEALTHY / OPERATIONAL"
-    status_class = "status-healthy"
+    # Extract metrics for selected cycle
+    cycle_row = unit_data[unit_data['time_cycles'] == selected_cycle].iloc[0]
+    pred_rul_val = cycle_row['pred_RUL']
+    fail_prob_val = cycle_row['failure_prob']
+    actual_rul_val = cycle_row['RUL']
 
-# Display Premium Metrics Cards
-st.markdown(f"""
-<div class="metric-container">
-    <div class="metric-card">
-        <div class="metric-label">Current Cycle</div>
-        <div class="metric-value">{selected_cycle} / {max_cycle}</div>
+    # Determine status class & description
+    if fail_prob_val > 0.5:
+        status_label = "CRITICAL FAILURE RISK"
+        status_class = "status-critical"
+    elif fail_prob_val > 0.2:
+        status_label = "CAUTION / WEAR DETECTED"
+        status_class = "status-caution"
+    else:
+        status_label = "HEALTHY / OPERATIONAL"
+        status_class = "status-healthy"
+
+    # Display Premium Metrics Cards
+    st.markdown(f"""
+    <div class="metric-container">
+        <div class="metric-card">
+            <div class="metric-label">Current Cycle</div>
+            <div class="metric-value">{selected_cycle} / {max_cycle}</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-label">Engine Health Status</div>
+            <div class="metric-value {status_class}">{status_label}</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-label">Predicted RUL</div>
+            <div class="metric-value">{pred_rul_val:.1f} cycles</div>
+        </div>
+        {"<div class='metric-card'><div class='metric-label'>Actual RUL</div><div class='metric-value'>" + (f"{actual_rul_val:.0f} cycles" if has_labels and not np.isnan(actual_rul_val) else "N/A") + "</div></div>" if has_labels else ""}
+        <div class="metric-card">
+            <div class="metric-label">Failure Probability (30 Cycles)</div>
+            <div class="metric-value">{fail_prob_val * 100:.1f}%</div>
+        </div>
     </div>
-    <div class="metric-card">
-        <div class="metric-label">Engine Health Status</div>
-        <div class="metric-value {status_class}">{status_label}</div>
-    </div>
-    <div class="metric-card">
-        <div class="metric-label">Predicted RUL</div>
-        <div class="metric-value">{pred_rul_val:.1f} cycles</div>
-    </div>
-    {"<div class='metric-card'><div class='metric-label'>Actual RUL</div><div class='metric-value'>" + (f"{actual_rul_val:.0f} cycles" if has_labels and not np.isnan(actual_rul_val) else "N/A") + "</div></div>" if has_labels else ""}
-    <div class="metric-card">
-        <div class="metric-label">Failure Probability (30 Cycles)</div>
-        <div class="metric-value">{fail_prob_val * 100:.1f}%</div>
-    </div>
-</div>
-""", unsafe_allow_html=True)
+    """, unsafe_allow_html=True)
 
-# ----------------- Visualizations -----------------
-sns.set_theme(style="darkgrid", palette="muted")
-plt.rcParams.update({
-    'figure.facecolor': '#1a1f29',
-    'axes.facecolor': '#1a1f29',
-    'text.color': '#ffffff',
-    'axes.labelcolor': '#a0aec0',
-    'xtick.color': '#a0aec0',
-    'ytick.color': '#a0aec0',
-    'grid.color': '#2d3748'
-})
+    # ----------------- Visualizations -----------------
+    sns.set_theme(style="darkgrid", palette="muted")
+    plt.rcParams.update({
+        'figure.facecolor': '#1a1f29',
+        'axes.facecolor': '#1a1f29',
+        'text.color': '#ffffff',
+        'axes.labelcolor': '#a0aec0',
+        'xtick.color': '#a0aec0',
+        'ytick.color': '#a0aec0',
+        'grid.color': '#2d3748'
+    })
 
-col1, col2 = st.columns(2)
+    col1, col2 = st.columns(2)
 
-with col1:
-    st.markdown("### 📉 Remaining Useful Life (RUL) Decline Profile")
-    fig_rul, ax_rul = plt.subplots(figsize=(10, 5))
-    
-    # Plot predicted RUL
-    ax_rul.plot(unit_data['time_cycles'], unit_data['pred_RUL'], color='#1E88E5', label='Predicted RUL (LSTM)', lw=2.5)
-    
-    # Plot actual RUL if labels exist
-    if has_labels:
-        ax_rul.plot(unit_data['time_cycles'], unit_data['RUL'], color='#10B981', linestyle='--', label='Ground Truth RUL', lw=2)
+    with col1:
+        st.markdown("### 📉 Remaining Useful Life (RUL) Decline Profile")
+        fig_rul, ax_rul = plt.subplots(figsize=(10, 4.5))
         
-    # Vertical line for the current selected cycle
-    ax_rul.axvline(x=selected_cycle, color='#EF4444', linestyle=':', label='Selected Cycle Analysis', lw=2)
-    
-    ax_rul.set_xlabel('Operational Cycles')
-    ax_rul.set_ylabel('Remaining Useful Life (RUL)')
-    ax_rul.legend(facecolor='#1a1f29', edgecolor='#2d3748')
-    ax_rul.set_title(f'RUL Degradation Curve for Engine Unit {selected_unit}', fontsize=12, pad=10)
-    st.pyplot(fig_rul)
-
-with col2:
-    st.markdown("### ⚠️ Failure Probability Trend")
-    fig_prob, ax_prob = plt.subplots(figsize=(10, 5))
-    
-    # Plot failure probability
-    ax_prob.plot(unit_data['time_cycles'], unit_data['failure_prob'], color='#F59E0B', lw=2.5, label='Failure Probability')
-    ax_prob.axhline(y=0.5, color='#EF4444', linestyle='--', label='Warning Threshold (0.5)', alpha=0.7)
-    
-    # Vertical line for selected cycle
-    ax_prob.axvline(x=selected_cycle, color='#EF4444', linestyle=':', lw=2)
-    
-    ax_prob.set_xlabel('Operational Cycles')
-    ax_prob.set_ylabel('Probability (Failure within 30 cycles)')
-    ax_prob.legend(facecolor='#1a1f29', edgecolor='#2d3748')
-    ax_prob.set_title('Imminent Failure Probability Progression', fontsize=12, pad=10)
-    st.pyplot(fig_prob)
-
-# ----------------- Telemetry Trends -----------------
-st.markdown("### 📡 Selected Sensor Telemetry Trends")
-if selected_sensors:
-    num_plots = len(selected_sensors)
-    cols_per_row = 2
-    rows = (num_plots + 1) // cols_per_row
-    
-    fig_sensors, axes = plt.subplots(rows, cols_per_row, figsize=(15, 3.5 * rows), sharex=True)
-    if num_plots == 1:
-        axes = np.array([axes])
-    axes = axes.flatten()
-    
-    for i, sensor in enumerate(selected_sensors):
-        ax = axes[i]
-        ax.plot(unit_data['time_cycles'], unit_data[sensor], color='#93C5FD', lw=1.5)
-        ax.axvline(x=selected_cycle, color='#EF4444', linestyle=':', lw=1.5)
-        # Highlight values inside the current 50-cycle window
-        window_start = max(SEQUENCE_LENGTH, selected_cycle - SEQUENCE_LENGTH + 1)
-        ax.axvspan(window_start, selected_cycle, color='#1E88E5', alpha=0.1, label='LSTM Input Window' if i==0 else "")
+        # Plot predicted RUL
+        ax_rul.plot(unit_data['time_cycles'], unit_data['pred_RUL'], color='#1E88E5', label='Predicted RUL (LSTM)', lw=2.5)
         
-        ax.set_title(f'Sensor {sensor}', fontsize=10)
-        if i >= num_plots - cols_per_row:
-            ax.set_xlabel('Cycles')
+        # Plot actual RUL if labels exist
+        if has_labels:
+            ax_rul.plot(unit_data['time_cycles'], unit_data['RUL'], color='#10B981', linestyle='--', label='Ground Truth RUL', lw=2)
             
-    # Hide unused subplots
-    for j in range(num_plots, len(axes)):
-        fig_sensors.delaxes(axes[j])
+        # Vertical line for the current selected cycle
+        ax_rul.axvline(x=selected_cycle, color='#EF4444', linestyle=':', label='Selected Cycle Analysis', lw=2)
         
-    plt.tight_layout()
-    st.pyplot(fig_sensors)
-else:
-    st.info("Select one or more sensors in the sidebar to plot their telemetry history.")
+        ax_rul.set_xlabel('Operational Cycles')
+        ax_rul.set_ylabel('Remaining Useful Life (RUL)')
+        ax_rul.legend(facecolor='#1a1f29', edgecolor='#2d3748')
+        ax_rul.set_title(f'RUL Degradation Curve for Engine Unit {selected_unit}', fontsize=12, pad=10)
+        st.pyplot(fig_rul)
 
-# ----------------- Raw Sequence Expander -----------------
-with st.expander("🔍 View Scale-Normalized 50-Cycle Input Sequence Details"):
+    with col2:
+        st.markdown("### ⚠️ Failure Probability Trend")
+        fig_prob, ax_prob = plt.subplots(figsize=(10, 4.5))
+        
+        # Plot failure probability
+        ax_prob.plot(unit_data['time_cycles'], unit_data['failure_prob'], color='#F59E0B', lw=2.5, label='Failure Probability')
+        ax_prob.axhline(y=0.5, color='#EF4444', linestyle='--', label='Warning Threshold (0.5)', alpha=0.7)
+        
+        # Vertical line for selected cycle
+        ax_prob.axvline(x=selected_cycle, color='#EF4444', linestyle=':', lw=2)
+        
+        ax_prob.set_xlabel('Operational Cycles')
+        ax_prob.set_ylabel('Probability (Failure within 30 cycles)')
+        ax_prob.legend(facecolor='#1a1f29', edgecolor='#2d3748')
+        ax_prob.set_title('Imminent Failure Probability Progression', fontsize=12, pad=10)
+        st.pyplot(fig_prob)
+
+    # ----------------- Telemetry Trends -----------------
+    st.markdown("### 📡 Selected Sensor Telemetry Trends")
+    if selected_sensors:
+        num_plots = len(selected_sensors)
+        cols_per_row = 2
+        rows = (num_plots + 1) // cols_per_row
+        
+        fig_sensors, axes = plt.subplots(rows, cols_per_row, figsize=(15, 3.5 * rows), sharex=True)
+        if num_plots == 1:
+            axes = np.array([axes])
+        axes = axes.flatten()
+        
+        for i, sensor in enumerate(selected_sensors):
+            ax = axes[i]
+            ax.plot(unit_data['time_cycles'], unit_data[sensor], color='#93C5FD', lw=1.5)
+            ax.axvline(x=selected_cycle, color='#EF4444', linestyle=':', lw=1.5)
+            # Highlight values inside the current 50-cycle window
+            window_start = max(SEQUENCE_LENGTH, selected_cycle - SEQUENCE_LENGTH + 1)
+            ax.axvspan(window_start, selected_cycle, color='#1E88E5', alpha=0.1, label='LSTM Input Window' if i==0 else "")
+            
+            ax.set_title(f'Sensor {sensor}', fontsize=10)
+            if i >= num_plots - cols_per_row:
+                ax.set_xlabel('Cycles')
+                
+        # Hide unused subplots
+        for j in range(num_plots, len(axes)):
+            fig_sensors.delaxes(axes[j])
+            
+        plt.tight_layout()
+        st.pyplot(fig_sensors)
+    else:
+        st.info("Select one or more sensors in the sidebar to plot their telemetry history.")
+
+with tab_glossary:
+    st.markdown("""
+    ### 📖 NASA CMAPSS Sensor Reference Guide
+    This dashboard visualizes telemetry data from the official **NASA CMAPSS (Turbofan Engine Degradation Simulation)** dataset. 
+    Below is a reference glossary describing the physical parameter each sensor represents, its operational unit, and its status in our predictive model.
+    
+    *   **Active Model Inputs (🟢)** are scaled using a min-max scaler and fed to the Dual-Head LSTM model.
+    *   **Dropped Sensors (🔴)** are constant or show negligible variance in the `FD001` subset, and were filtered out during preprocessing to reduce noise.
+    """)
+    
+    # Metadata for all 21 sensors
+    sensor_metadata = [
+        {"Sensor": "s_1", "Symbol": "T2", "Description": "Total temperature at fan inlet", "Unit": "°R", "Status": "🔴 Dropped (Low Variance)"},
+        {"Sensor": "s_2", "Symbol": "T24", "Description": "Total temperature at LPC outlet", "Unit": "°R", "Status": "🟢 Active Model Input"},
+        {"Sensor": "s_3", "Symbol": "T30", "Description": "Total temperature at HPC outlet", "Unit": "°R", "Status": "🟢 Active Model Input"},
+        {"Sensor": "s_4", "Symbol": "T50", "Description": "Total temperature at LPT outlet", "Unit": "°R", "Status": "🟢 Active Model Input"},
+        {"Sensor": "s_5", "Symbol": "P2", "Description": "Total pressure at fan inlet", "Unit": "psia", "Status": "🔴 Dropped (Low Variance)"},
+        {"Sensor": "s_6", "Symbol": "P15", "Description": "Total pressure in bypass-duct", "Unit": "psia", "Status": "🔴 Dropped (Low Variance)"},
+        {"Sensor": "s_7", "Symbol": "P30", "Description": "Total pressure at HPC outlet", "Unit": "psia", "Status": "🟢 Active Model Input"},
+        {"Sensor": "s_8", "Symbol": "Nf", "Description": "Physical fan speed", "Unit": "rpm", "Status": "🟢 Active Model Input"},
+        {"Sensor": "s_9", "Symbol": "Nc", "Description": "Physical core speed", "Unit": "rpm", "Status": "🟢 Active Model Input"},
+        {"Sensor": "s_10", "Symbol": "epr", "Description": "Engine pressure ratio (P50/P2)", "Unit": "-", "Status": "🔴 Dropped (Low Variance)"},
+        {"Sensor": "s_11", "Symbol": "Ps30", "Description": "Static pressure at HPC outlet", "Unit": "psia", "Status": "🟢 Active Model Input"},
+        {"Sensor": "s_12", "Symbol": "phi", "Description": "Ratio of fuel flow to Ps30", "Unit": "pps/psi", "Status": "🟢 Active Model Input"},
+        {"Sensor": "s_13", "Symbol": "NRf", "Description": "Corrected fan speed", "Unit": "rpm", "Status": "🟢 Active Model Input"},
+        {"Sensor": "s_14", "Symbol": "NRc", "Description": "Corrected core speed", "Unit": "rpm", "Status": "🟢 Active Model Input"},
+        {"Sensor": "s_15", "Symbol": "BPR", "Description": "Bypass ratio", "Unit": "-", "Status": "🟢 Active Model Input"},
+        {"Sensor": "s_16", "Symbol": "far", "Description": "Burner fuel-air ratio", "Unit": "-", "Status": "🔴 Dropped (Low Variance)"},
+        {"Sensor": "s_17", "Symbol": "htBleed", "Description": "Bleed enthalpy", "Unit": "-", "Status": "🟢 Active Model Input"},
+        {"Sensor": "s_18", "Symbol": "Nf_dmd", "Description": "Demanded fan speed", "Unit": "rpm", "Status": "🔴 Dropped (Low Variance)"},
+        {"Sensor": "s_19", "Symbol": "PCNfR_dmd", "Description": "Demanded corrected fan speed", "Unit": "rpm", "Status": "🔴 Dropped (Low Variance)"},
+        {"Sensor": "s_20", "Symbol": "W31", "Description": "HPT coolant bleed", "Unit": "lbm/s", "Status": "🟢 Active Model Input"},
+        {"Sensor": "s_21", "Symbol": "W32", "Description": "LPT coolant bleed", "Unit": "lbm/s", "Status": "🟢 Active Model Input"}
+    ]
+    
+    df_glossary = pd.DataFrame(sensor_metadata)
+    
+    # Render table beautifully using st.dataframe with custom styling or st.table
+    st.dataframe(
+        df_glossary,
+        use_container_width=True,
+        hide_index=True
+    )
+    
+    st.markdown("""
+    ### ⚙️ Operational Settings Reference
+    In addition to the sensors, the dataset records **three operational settings** representing the environment and engine flight configurations:
+    1.  **Setting 1 (Altitude)**: Altitude of the flight simulation environment.
+    2.  **Setting 2 (Mach Number)**: Flight speed relative to the speed of sound.
+    3.  **Setting 3 (Throttle Resolver Angle)**: Throttle control input defining power demand.
+    """)
+
+with tab_raw:
     # Extract the exact 50 cycle segment
     start_idx = max(0, selected_cycle - SEQUENCE_LENGTH)
     seq_data_raw = unit_data.iloc[start_idx:selected_cycle]
@@ -397,6 +457,11 @@ with st.expander("🔍 View Scale-Normalized 50-Cycle Input Sequence Details"):
     seq_data_scaled = seq_data_raw.copy()
     seq_data_scaled[seq_cols] = scaler.transform(seq_data_scaled[seq_cols])
     
-    # Format and present to user
-    st.write(f"Displaying the sequence for Cycle {start_idx + 1} to {selected_cycle} (Shape: {seq_data_scaled[seq_cols].shape})")
-    st.dataframe(seq_data_scaled[['time_cycles'] + seq_cols])
+    st.markdown(f"### 🔍 Scale-Normalized 50-Cycle Input Matrix (Cycle {start_idx + 1} to {selected_cycle})")
+    st.write(f"This is the actual 3D window shape `[1, 50, 17]` fed directly to the Dual-Head LSTM model backbone for the selected cycle.")
+    
+    st.dataframe(
+        seq_data_scaled[['time_cycles'] + seq_cols],
+        use_container_width=True
+    )
+
