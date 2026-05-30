@@ -1,6 +1,10 @@
 data/*.txt
+!data/test_FD001.txt
+!data/RUL_FD001.txt
 src/*.joblib
+!src/scaler.joblib
 src/*.pth
+!src/lstm_model.pth
 __pycache__/
 *.pyc
 .ipynb_checkpoints/
