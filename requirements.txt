@@ -10,3 +10,4 @@ seaborn
 xgboost
 python-multipart
 httpx
+streamlit
