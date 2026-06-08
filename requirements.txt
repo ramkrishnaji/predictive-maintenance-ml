@@ -11,3 +11,7 @@ xgboost
 python-multipart
 httpx
 streamlit
+mlflow
+evidently
+pytest
+jinja2

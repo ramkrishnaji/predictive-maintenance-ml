@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.11.3
+    container_name: mlflow_server
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./mlflow_data:/mlflow
+    command: mlflow server --host 0.0.0.0 --port 5000 --backend-store-uri sqlite:///mlflow/mlflow.db --default-artifact-root /mlflow/artifacts
+    restart: unless-stopped
+
+  fastapi:
+    build: .
+    container_name: fastapi_inference
+    ports:
+      - "8000:8000"
+    environment:
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+    depends_on:
+      - mlflow
+    volumes:
+      - ./data:/app/data
+      - ./assets:/app/assets
+      - ./mlflow_data:/mlflow  # Identical mount path to resolve MLflow local model loading
+    restart: unless-stopped
